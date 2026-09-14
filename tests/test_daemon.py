@@ -81,12 +81,29 @@ class DaemonTests(unittest.TestCase):
         daemon = KioskDaemon()
         daemon.mpv = mock.Mock()
         daemon.mpv_started_at = 1
-        daemon.last_idle_ms = 30_000
-        with mock.patch.object(daemon, "idle_milliseconds", return_value=0), mock.patch.object(
+        daemon.input_fds = {99: Path("/dev/input/event-test")}
+        with mock.patch.object(daemon, "physical_input_detected", return_value=True), mock.patch.object(
+            daemon, "idle_milliseconds", return_value=0
+        ), mock.patch.object(
             daemon, "stop_screensaver"
         ) as stop, mock.patch("chaski_web_kiosk.daemon.time.monotonic", return_value=2):
             daemon.check_screensaver()
         stop.assert_called_once_with(refresh_content=True)
+
+    def test_x_idle_reset_during_video_is_not_treated_as_physical_input(self) -> None:
+        daemon = KioskDaemon()
+        process = mock.Mock()
+        process.poll.return_value = None
+        daemon.mpv = process
+        daemon.mpv_started_at = 1
+        daemon.last_idle_ms = 30_000
+        daemon.input_fds = {99: Path("/dev/input/event-test")}
+        with mock.patch.object(daemon, "physical_input_detected", return_value=False), mock.patch.object(
+            daemon, "idle_milliseconds", return_value=0
+        ), mock.patch.object(daemon, "stop_screensaver") as stop:
+            daemon.check_screensaver()
+        stop.assert_not_called()
+        self.assertIs(daemon.mpv, process)
 
     def test_screensaver_starts_at_configured_30_second_idle_timeout(self) -> None:
         daemon = KioskDaemon()

@@ -7,10 +7,12 @@ import json
 import logging
 import os
 import queue
+import select
 import shutil
 import signal
 import socket
 import socketserver
+import struct
 import subprocess
 import threading
 import time
@@ -23,6 +25,10 @@ from .common import COMMAND_SOCKET, CONFIG_FILE, ROOT, RUNTIME, STATE_HOME, STAT
 
 
 LOG = logging.getLogger("chaski-web-kiosk")
+INPUT_EVENT = struct.Struct("@llHHi")
+EV_KEY = 0x01
+EV_REL = 0x02
+EV_ABS = 0x03
 
 
 class KioskState(str, Enum):
@@ -79,6 +85,8 @@ class KioskDaemon:
         self.mpv_started_at = 0.0
         self.saver_dismissed = False
         self.last_idle_ms: int | None = None
+        self.input_fds: dict[int, Path] = {}
+        self.last_input_device_scan = -10.0
         self.last_status: dict[str, Any] | None = None
         self.last_status_write = 0.0
         self.last_watchdog = 0.0
@@ -269,6 +277,74 @@ class KioskDaemon:
         except (OSError, ValueError, subprocess.SubprocessError):
             return 0
 
+    def refresh_input_devices(self) -> None:
+        """Open Linux evdev devices so only physical input can dismiss video."""
+        now = time.monotonic()
+        if now - self.last_input_device_scan < 5:
+            return
+        self.last_input_device_scan = now
+        input_root = Path("/dev/input")
+        paths = set(input_root.glob("event*")) if input_root.is_dir() else set()
+        for descriptor, path in list(self.input_fds.items()):
+            if path not in paths:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+                del self.input_fds[descriptor]
+        opened_paths = set(self.input_fds.values())
+        for path in sorted(paths - opened_paths):
+            try:
+                descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+            except OSError:
+                continue
+            self.input_fds[descriptor] = path
+            LOG.info("monitoring physical input device %s", path)
+
+    def physical_input_detected(self) -> bool:
+        self.refresh_input_devices()
+        if not self.input_fds:
+            return False
+        try:
+            ready, _, _ = select.select(list(self.input_fds), [], [], 0)
+        except (OSError, ValueError):
+            return False
+        activity = False
+        for descriptor in ready:
+            while True:
+                try:
+                    data = os.read(descriptor, INPUT_EVENT.size * 64)
+                except BlockingIOError:
+                    break
+                except OSError:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+                    self.input_fds.pop(descriptor, None)
+                    break
+                if not data:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+                    self.input_fds.pop(descriptor, None)
+                    break
+                complete = len(data) - (len(data) % INPUT_EVENT.size)
+                for offset in range(0, complete, INPUT_EVENT.size):
+                    _, _, event_type, _, value = INPUT_EVENT.unpack_from(data, offset)
+                    if (event_type == EV_KEY and value != 0) or (event_type in {EV_REL, EV_ABS} and value != 0):
+                        activity = True
+        return activity
+
+    def close_input_devices(self) -> None:
+        for descriptor in list(self.input_fds):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        self.input_fds.clear()
+
     def start_screensaver(self, *, manual: bool = False) -> bool:
         if self.mpv is not None:
             return True
@@ -329,9 +405,13 @@ class KioskDaemon:
             self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     def check_screensaver(self) -> None:
+        physical_activity = self.physical_input_detected()
         idle = self.idle_milliseconds()
-        activity = self.last_idle_ms is not None and idle + 500 < self.last_idle_ms
+        idle_reset = self.last_idle_ms is not None and idle + 500 < self.last_idle_ms
         self.last_idle_ms = idle
+        # xprintidle can reset when a fullscreen video loops. It remains a safe
+        # fallback only when evdev access is unavailable.
+        activity = physical_activity or (not self.input_fds and idle_reset)
         if activity:
             self.saver_dismissed = False
         if self.mpv is not None:
@@ -450,6 +530,7 @@ class KioskDaemon:
             self.command_server.shutdown()
         self.stop_screensaver()
         self.stop_chromium()
+        self.close_input_devices()
 
 
 def main() -> int:
