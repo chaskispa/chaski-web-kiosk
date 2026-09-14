@@ -1,0 +1,253 @@
+#!/usr/bin/python3
+"""Validated NetworkManager adapter for CHASKI Web Kiosk.
+
+The control service may invoke only the ``apply`` entry point through sudo.  This
+helper never executes a shell and accepts a deliberately small JSON schema.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+NMCLI = next((path for path in ("/usr/bin/nmcli", "/bin/nmcli") if Path(path).is_file()), "/usr/bin/nmcli")
+ENV = {**os.environ, "LANG": "C", "LC_ALL": "C"}
+
+
+def result(value: dict[str, Any], code: int = 0) -> int:
+    print(json.dumps(value, separators=(",", ":")))
+    return code
+
+
+def run_nmcli(*arguments: str, check: bool = True) -> str:
+    completed = subprocess.run(
+        [NMCLI, "--colors", "no", *arguments],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=ENV,
+        check=False,
+    )
+    if check and completed.returncode != 0:
+        message = completed.stderr.strip() or completed.stdout.strip() or "NetworkManager command failed"
+        raise RuntimeError(message)
+    return completed.stdout.strip()
+
+
+def available() -> bool:
+    if not Path(NMCLI).is_file():
+        return False
+    completed = subprocess.run(
+        ["/usr/bin/systemctl", "is-active", "--quiet", "NetworkManager.service"],
+        timeout=5,
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def device_rows() -> list[dict[str, Any]]:
+    interfaces: list[dict[str, Any]] = []
+    if not available():
+        for entry in sorted(Path("/sys/class/net").glob("*")):
+            if entry.name != "lo":
+                interfaces.append({"interface": entry.name, "type": "unknown", "state": "unmanaged"})
+        return interfaces
+    output = run_nmcli("-t", "--escape", "no", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status")
+    for line in output.splitlines():
+        fields = line.split(":", 3)
+        if len(fields) != 4 or fields[0] == "lo" or fields[1] not in {"ethernet", "wifi"}:
+            continue
+        interface, device_type, state, connection = fields
+        addresses = run_nmcli("-g", "IP4.ADDRESS", "device", "show", interface, check=False).splitlines()
+        gateway = run_nmcli("-g", "IP4.GATEWAY", "device", "show", interface, check=False).splitlines()
+        dns = run_nmcli("-g", "IP4.DNS", "device", "show", interface, check=False).splitlines()
+        method = run_nmcli("-g", "ipv4.method", "connection", "show", connection, check=False) if connection != "--" else ""
+        interfaces.append(
+            {
+                "interface": interface,
+                "type": device_type,
+                "state": state,
+                "connection": "" if connection == "--" else connection,
+                "mode": "static" if method == "manual" else "dhcp",
+                "addresses": [item for item in addresses if item],
+                "gateway": next((item for item in gateway if item), ""),
+                "dns": [item for item in dns if item],
+            }
+        )
+    return interfaces
+
+
+def status() -> dict[str, Any]:
+    enabled = available()
+    return {
+        "available": enabled,
+        "backend": "NetworkManager" if enabled else None,
+        "message": "" if enabled else "NetworkManager is not installed or active on this OS image.",
+        "interfaces": device_rows(),
+    }
+
+
+def read_payload() -> dict[str, Any]:
+    raw = sys.stdin.buffer.read(65537)
+    if len(raw) > 65536:
+        raise ValueError("Network request is too large")
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Network request must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Network request must be a JSON object")
+    return payload
+
+
+def validate(payload: dict[str, Any]) -> dict[str, Any]:
+    allowed = {"interface", "mode", "address", "gateway", "dns", "ssid", "password"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise ValueError(f"Unknown network field: {sorted(unknown)[0]}")
+    interface = payload.get("interface")
+    if not isinstance(interface, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,32}", interface) or interface == "lo":
+        raise ValueError("Select a valid Ethernet or Wi-Fi interface")
+    if not (Path("/sys/class/net") / interface).exists():
+        raise ValueError("The selected network interface does not exist")
+    mode = payload.get("mode")
+    if mode not in {"dhcp", "static"}:
+        raise ValueError("IPv4 mode must be dhcp or static")
+
+    normalized: dict[str, Any] = {"interface": interface, "mode": mode}
+    if mode == "static":
+        try:
+            address = ipaddress.ip_interface(str(payload.get("address", "")))
+        except ValueError as exc:
+            raise ValueError("Static address must be IPv4 CIDR, for example 192.168.1.50/24") from exc
+        if address.version != 4:
+            raise ValueError("Only static IPv4 configuration is supported")
+        gateway_value = str(payload.get("gateway", "")).strip()
+        try:
+            gateway = ipaddress.ip_address(gateway_value)
+        except ValueError as exc:
+            raise ValueError("A valid IPv4 gateway is required for static mode") from exc
+        if gateway.version != 4:
+            raise ValueError("Gateway must be IPv4")
+        if gateway not in address.network:
+            raise ValueError("Gateway must be inside the static address subnet")
+        dns_value = payload.get("dns", [])
+        if isinstance(dns_value, str):
+            dns_value = [item.strip() for item in dns_value.split(",") if item.strip()]
+        if not isinstance(dns_value, list) or len(dns_value) > 4:
+            raise ValueError("DNS must contain at most four IPv4 addresses")
+        dns: list[str] = []
+        for item in dns_value:
+            try:
+                server = ipaddress.ip_address(str(item))
+            except ValueError as exc:
+                raise ValueError(f"Invalid DNS address: {item}") from exc
+            if server.version != 4:
+                raise ValueError("Only IPv4 DNS servers are supported")
+            dns.append(str(server))
+        normalized.update(
+            {
+                "address": str(address),
+                "gateway": str(gateway),
+                "dns": dns,
+                "reconnect_address": str(address.ip),
+            }
+        )
+    else:
+        normalized.update({"address": "", "gateway": "", "dns": [], "reconnect_address": None})
+
+    ssid = payload.get("ssid", "")
+    password = payload.get("password", "")
+    if not isinstance(ssid, str) or len(ssid.encode("utf-8")) > 32:
+        raise ValueError("Wi-Fi SSID must be at most 32 bytes")
+    if not isinstance(password, str) or len(password) > 63:
+        raise ValueError("Wi-Fi password must be at most 63 characters")
+    if any(ord(character) < 32 for character in ssid + password):
+        raise ValueError("Wi-Fi credentials must not contain control characters")
+    if password and len(password) < 8:
+        raise ValueError("Wi-Fi password must contain at least 8 characters")
+    normalized.update({"ssid": ssid, "password": password})
+    return normalized
+
+
+def current_connection(interface: str) -> str:
+    value = run_nmcli("-g", "GENERAL.CONNECTION", "device", "show", interface, check=False).strip()
+    return "" if value == "--" else value
+
+
+def validate_for_system(payload: dict[str, Any]) -> dict[str, Any]:
+    settings = validate(payload)
+    if settings["ssid"]:
+        device_type = run_nmcli("-g", "GENERAL.TYPE", "device", "show", settings["interface"], check=False)
+        if "wifi" not in device_type:
+            raise ValueError("An SSID can only be applied to a Wi-Fi interface")
+    return settings
+
+
+def apply(payload: dict[str, Any]) -> dict[str, Any]:
+    if os.geteuid() != 0:
+        raise PermissionError("Network changes require root privileges")
+    if not available():
+        raise RuntimeError("NetworkManager is not installed or active")
+    settings = validate_for_system(payload)
+    interface = settings["interface"]
+    connection = current_connection(interface)
+
+    if settings["ssid"]:
+        command = ["--wait", "25", "device", "wifi", "connect", settings["ssid"]]
+        if settings["password"]:
+            command.extend(["password", settings["password"]])
+        command.extend(["ifname", interface])
+        run_nmcli(*command)
+        connection = current_connection(interface)
+        if not connection:
+            raise RuntimeError("Wi-Fi connected without an active NetworkManager profile")
+    elif not connection:
+        device_type = run_nmcli("-g", "GENERAL.TYPE", "device", "show", interface, check=False)
+        if "wifi" in device_type:
+            raise ValueError("An SSID is required to connect this Wi-Fi interface")
+        connection = f"chaski-{interface}"
+        run_nmcli("connection", "add", "type", "ethernet", "ifname", interface, "con-name", connection)
+
+    if settings["mode"] == "dhcp":
+        run_nmcli(
+            "connection", "modify", connection,
+            "ipv4.method", "auto", "ipv4.addresses", "", "ipv4.gateway", "", "ipv4.dns", "",
+            "ipv4.ignore-auto-dns", "no",
+        )
+    else:
+        run_nmcli(
+            "connection", "modify", connection,
+            "ipv4.method", "manual", "ipv4.addresses", settings["address"],
+            "ipv4.gateway", settings["gateway"], "ipv4.dns", ",".join(settings["dns"]),
+            "ipv4.ignore-auto-dns", "yes" if settings["dns"] else "no",
+        )
+    run_nmcli("--wait", "25", "connection", "up", "id", connection, "ifname", interface)
+    return {"ok": True, "reconnect_address": settings["reconnect_address"]}
+
+
+def main() -> int:
+    command = sys.argv[1] if len(sys.argv) == 2 else ""
+    try:
+        if command == "status":
+            return result(status())
+        if command == "validate":
+            if not available():
+                raise RuntimeError("NetworkManager is not installed or active on this OS image")
+            return result(validate_for_system(read_payload()))
+        if command == "apply":
+            return result(apply(read_payload()))
+        return result({"error": "Usage: chaski-network status|validate|apply"}, 2)
+    except (ValueError, RuntimeError, PermissionError, OSError, subprocess.SubprocessError) as exc:
+        return result({"error": str(exc)}, 1)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

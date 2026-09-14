@@ -1,0 +1,4 @@
+#!/bin/sh
+# User-facing name; the Python package retains its stable upgrade-compatible name.
+cd /opt/chaski-player/app
+exec /usr/bin/python3 -m chaski_player.status "$@"

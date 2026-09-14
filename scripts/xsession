@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+export DISPLAY="${DISPLAY:-:0}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+xset s off
+xset -dpms
+xset s noblank
+xsetroot -solid '#0b0d10'
+
+unclutter -idle 0.5 -root &
+unclutter_pid=$!
+
+cleanup() {
+    kill "$unclutter_pid" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+exec openbox-session

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CHASKI Web Kiosk</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="brand-mark">C</span><span class="brand">CHASKI WEB KIOSK</span></div>
+    <span id="connection" class="badge muted">Connecting</span>
+  </header>
+  <main class="dashboard">
+    <section class="hero panel">
+      <div>
+        <p class="eyebrow">KIOSK</p>
+        <h1 id="player-name">—</h1>
+        <p id="address" class="subtle">Loading device status…</p>
+      </div>
+      <div class="state-block">
+        <span id="state" class="state">—</span>
+        <small id="state-detail">—</small>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <article class="panel metric"><span>Chromium</span><strong id="chromium">—</strong></article>
+      <article class="panel metric"><span>Screensaver</span><strong id="saver-status">—</strong></article>
+      <article class="panel metric"><span>Uptime</span><strong id="uptime">—</strong></article>
+      <article class="panel metric"><span>Version</span><strong id="version">—</strong></article>
+    </section>
+
+    <section class="columns">
+      <article class="panel">
+        <div class="section-title"><div><p class="eyebrow">PLAYBACK</p><h2>Web content</h2></div></div>
+        <form id="url-form">
+          <label for="url">Content URL</label>
+          <input id="url" name="url" type="url" maxlength="2048" required placeholder="https://example.com/display">
+          <div class="actions">
+            <button class="primary" type="submit">Save URL</button>
+            <button id="reload" type="button">Reload</button>
+            <button id="restart" type="button">Restart playback</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="section-title"><div><p class="eyebrow">IDLE CONTENT</p><h2>Screensaver</h2></div></div>
+        <form id="saver-form">
+          <label class="toggle-row" for="saver-enabled"><span>Enable screensaver</span><input id="saver-enabled" type="checkbox"></label>
+          <label for="timeout">Start after (seconds)</label>
+          <input id="timeout" type="number" min="10" max="86400" required>
+          <label for="media">Local MP4 path or direct video URL</label>
+          <input id="media" type="text" required placeholder="/opt/chaski-player/media/screensaver.mp4">
+          <label for="video-file">Upload an MP4 to this player</label>
+          <input id="video-file" type="file" accept="video/mp4,.mp4">
+          <div class="upload-line"><progress id="upload-progress" max="100" value="0"></progress><span id="upload-label">No upload running</span></div>
+          <div class="actions">
+            <button class="primary" type="submit">Save settings</button>
+            <button id="video-upload" type="button">Upload &amp; select</button>
+            <button id="saver-start" type="button">Preview</button>
+            <button id="saver-stop" type="button">Stop</button>
+          </div>
+        </form>
+      </article>
+    </section>
+
+    <section class="panel network-panel">
+      <div class="section-title"><div><p class="eyebrow">CONNECTIVITY</p><h2>Network</h2></div><span id="network-backend" class="badge muted">Checking</span></div>
+      <p id="network-message" class="subtle">Loading network interfaces…</p>
+      <form id="network-form">
+        <div class="form-grid">
+          <div><label for="network-interface">Interface</label><select id="network-interface" required></select></div>
+          <div><label for="network-mode">IPv4 mode</label><select id="network-mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Static IPv4</option></select></div>
+        </div>
+        <div id="static-fields" class="form-grid hidden">
+          <div><label for="network-address">Address / prefix</label><input id="network-address" placeholder="192.168.1.50/24"></div>
+          <div><label for="network-gateway">Gateway</label><input id="network-gateway" placeholder="192.168.1.1"></div>
+          <div class="wide"><label for="network-dns">DNS servers, comma separated</label><input id="network-dns" placeholder="1.1.1.1, 8.8.8.8"></div>
+        </div>
+        <div class="form-grid">
+          <div><label for="network-ssid">Wi-Fi SSID (optional)</label><input id="network-ssid" maxlength="32" autocomplete="off"></div>
+          <div><label for="network-password">Wi-Fi password</label><input id="network-password" type="password" minlength="8" maxlength="63" autocomplete="new-password"></div>
+        </div>
+        <p class="warning">Applying network settings may disconnect this page. Verify static addresses carefully and reconnect using the new IP.</p>
+        <div class="actions"><button id="network-apply" class="primary" type="submit">Apply network settings</button></div>
+      </form>
+    </section>
+
+    <section class="panel device">
+      <div><p class="eyebrow">DEVICE</p><h2>System</h2><p class="subtle">Hostname: <span id="hostname">—</span></p></div>
+      <button id="reboot" class="danger" type="button">Reboot player</button>
+    </section>
+    <footer class="credits">CHASKI Web Kiosk · Coded with OpenAI Codex</footer>
+    <div id="message" role="status" aria-live="polite"></div>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

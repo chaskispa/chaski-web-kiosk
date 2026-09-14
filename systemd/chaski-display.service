@@ -1,0 +1,32 @@
+[Unit]
+Description=CHASKI Web Kiosk minimal X11 display
+After=systemd-user-sessions.service
+Before=chaski-player.service
+Conflicts=getty@tty1.service
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=chaski
+Group=chaski
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Environment=HOME=/var/lib/chaski-player
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/chaski-xdg
+RuntimeDirectory=chaski-xdg
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/xinit /opt/chaski-player/bin/xsession -- :0 vt1 -nolisten tcp -keeptty -novtswitch
+Restart=always
+RestartSec=3
+KillMode=control-group
+
+[Install]
+WantedBy=graphical.target
