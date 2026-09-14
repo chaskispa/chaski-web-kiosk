@@ -22,10 +22,10 @@ from urllib.parse import urlparse
 from .common import COMMAND_SOCKET, CONFIG_FILE, ROOT, RUNTIME, STATUS_FILE, atomic_write_json, is_remote_media, load_config
 
 
-LOG = logging.getLogger("chaski-player")
+LOG = logging.getLogger("chaski-web-kiosk")
 
 
-class PlayerState(str, Enum):
+class KioskState(str, Enum):
     BOOT = "BOOT"
     STARTING = "STARTING"
     WEB_CONTENT = "WEB_CONTENT"
@@ -57,9 +57,9 @@ class CommandServer(socketserver.ThreadingUnixStreamServer):
         super().__init__(path, CommandHandler)
 
 
-class PlayerDaemon:
+class KioskDaemon:
     def __init__(self) -> None:
-        self.state = PlayerState.BOOT
+        self.state = KioskState.BOOT
         self.state_detail = "daemon starting"
         self.config: dict[str, Any] = {}
         self.config_mtime_ns = 0
@@ -82,7 +82,7 @@ class PlayerDaemon:
         self.last_status_write = 0.0
         self.last_watchdog = 0.0
 
-    def transition(self, state: PlayerState, detail: str) -> None:
+    def transition(self, state: KioskState, detail: str) -> None:
         if state != self.state or detail != self.state_detail:
             LOG.info("state %s -> %s: %s", self.state.value, state.value, detail)
             self.state = state
@@ -99,7 +99,7 @@ class PlayerDaemon:
             except OSError:
                 pass
             LOG.error("cannot load configuration: %s", exc)
-            self.transition(PlayerState.ERROR, f"invalid configuration: {exc}")
+            self.transition(KioskState.ERROR, f"invalid configuration: {exc}")
             return False
         changed = new_config != self.config
         self.config = new_config
@@ -133,7 +133,7 @@ class PlayerDaemon:
         binary = self.executable("chromium", "chromium-browser")
         cache = RUNTIME / "chromium-cache"
         cache.mkdir(parents=True, exist_ok=True)
-        profile = Path("/var/lib/chaski-player/chromium")
+        profile = Path("/var/lib/chaski-web-kiosk/chromium")
         profile.mkdir(parents=True, exist_ok=True)
         return [
             binary,
@@ -161,7 +161,7 @@ class PlayerDaemon:
         if self.chromium is not None or time.monotonic() < self.chromium_next_start:
             return
         if not self.display_ready():
-            self.transition(PlayerState.STARTING, "waiting for X display")
+            self.transition(KioskState.STARTING, "waiting for X display")
             self.chromium_next_start = time.monotonic() + 2
             return
         try:
@@ -169,11 +169,11 @@ class PlayerDaemon:
         except (OSError, KeyError) as exc:
             self.chromium_failures += 1
             self.chromium_next_start = time.monotonic() + min(30, 2 ** min(self.chromium_failures, 5))
-            self.transition(PlayerState.ERROR, f"could not start Chromium: {exc}")
+            self.transition(KioskState.ERROR, f"could not start Chromium: {exc}")
             return
         self.chromium_started_at = time.monotonic()
         self.devtools_failures = 0
-        self.transition(PlayerState.WEB_CONTENT, "Chromium running")
+        self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     @staticmethod
     def terminate(process: subprocess.Popen[bytes] | None, name: str) -> None:
@@ -206,7 +206,7 @@ class PlayerDaemon:
             self.chromium_failures = 0 if ran_for > 120 else self.chromium_failures + 1
             delay = min(30, 2 ** min(self.chromium_failures, 5))
             self.chromium_next_start = time.monotonic() + delay
-            self.transition(PlayerState.ERROR, f"Chromium exited ({code}); restart in {delay}s")
+            self.transition(KioskState.ERROR, f"Chromium exited ({code}); restart in {delay}s")
             return
         if time.monotonic() - self.last_devtools_check < 15:
             return
@@ -248,7 +248,7 @@ class PlayerDaemon:
         except OSError:
             self.network_failures += 1
             if self.network_failures >= 2 and self.mpv is None:
-                self.transition(PlayerState.OFFLINE, f"content origin unavailable: {host}:{port}")
+                self.transition(KioskState.OFFLINE, f"content origin unavailable: {host}:{port}")
 
     def idle_milliseconds(self) -> int:
         try:
@@ -300,7 +300,7 @@ class PlayerDaemon:
             self.mpv_next_start = time.monotonic() + 30
             return False
         self.mpv_started_at = time.monotonic()
-        self.transition(PlayerState.SCREENSAVER, "screensaver playing")
+        self.transition(KioskState.SCREENSAVER, "screensaver playing")
         return True
 
     def stop_screensaver(self) -> None:
@@ -308,7 +308,7 @@ class PlayerDaemon:
         self.mpv = None
         self.saver_dismissed = True
         if self.chromium is not None and self.chromium.poll() is None:
-            self.transition(PlayerState.WEB_CONTENT, "Chromium running")
+            self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     def check_screensaver(self) -> None:
         idle = self.idle_milliseconds()
@@ -326,7 +326,7 @@ class PlayerDaemon:
                 else:
                     LOG.warning("mpv exited unexpectedly (%s)", code)
                     self.mpv_next_start = time.monotonic() + 10
-                self.transition(PlayerState.WEB_CONTENT, "screensaver stopped")
+                self.transition(KioskState.WEB_CONTENT, "screensaver stopped")
             return
         saver = self.config.get("screensaver", {})
         if saver.get("enabled") and idle >= int(saver.get("timeout_seconds", 300)) * 1000:
@@ -406,7 +406,7 @@ class PlayerDaemon:
         if not self.load_configuration(initial=True):
             return 1
         self.start_command_server()
-        self.transition(PlayerState.STARTING, "waiting for display")
+        self.transition(KioskState.STARTING, "waiting for display")
         self.sd_notify("READY=1\nSTATUS=Starting playback")
         while not self.stop_event.is_set():
             self.process_commands()
@@ -414,7 +414,7 @@ class PlayerDaemon:
                 if CONFIG_FILE.stat().st_mtime_ns != self.config_mtime_ns:
                     self.load_configuration()
             except OSError:
-                self.transition(PlayerState.ERROR, "configuration file unavailable")
+                self.transition(KioskState.ERROR, "configuration file unavailable")
             self.check_chromium()
             self.check_network()
             self.check_screensaver()
@@ -436,7 +436,7 @@ class PlayerDaemon:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    daemon = PlayerDaemon()
+    daemon = KioskDaemon()
     signal.signal(signal.SIGTERM, daemon.shutdown)
     signal.signal(signal.SIGINT, daemon.shutdown)
     try:

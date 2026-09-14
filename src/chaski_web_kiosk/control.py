@@ -34,11 +34,11 @@ from .common import (
 )
 
 
-LOG = logging.getLogger("chaski-control")
+LOG = logging.getLogger("chaski-web-kiosk-control")
 STATIC_DIR = ROOT / "static"
 MAX_BODY = 65536
 MAX_UPLOAD = 2 * 1024 * 1024 * 1024
-NETWORK_HELPER = "/usr/local/libexec/chaski-network"
+NETWORK_HELPER = "/usr/local/libexec/chaski-web-kiosk-network"
 
 
 class ControlServer(ThreadingHTTPServer):
@@ -99,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
         status = read_json(STATUS_FILE, {})
         status.update(
             {
-                "player_name": config["player_name"],
+                "kiosk_name": config["kiosk_name"],
                 "hostname": socket.gethostname(),
                 "ip": local_ip(),
                 "uptime_seconds": system_uptime(),
@@ -236,7 +236,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             send_command("screensaver-stop")
         except (OSError, RuntimeError, json.JSONDecodeError):
-            LOG.warning("video uploaded but player daemon was unavailable")
+            LOG.warning("video uploaded but kiosk supervisor was unavailable")
         self.send_json(HTTPStatus.CREATED, {"ok": True, "filename": filename, "media": str(target)})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -255,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
                 atomic_write_json(CONFIG_FILE, updated)
                 self.run_command("restart-playback" if updated["url"] != current["url"] else "reload")
                 if port_changed:
-                    LOG.warning("control port change takes effect after chaski-control restarts")
+                    LOG.warning("control port change takes effect after chaski-web-kiosk-control restarts")
                     threading.Timer(1.0, lambda: os._exit(0)).start()
             elif path == "/api/url":
                 body = self.read_body()

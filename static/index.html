@@ -15,7 +15,7 @@
     <section class="hero panel">
       <div>
         <p class="eyebrow">KIOSK</p>
-        <h1 id="player-name">—</h1>
+        <h1 id="kiosk-name">—</h1>
         <p id="address" class="subtle">Loading device status…</p>
       </div>
       <div class="state-block">
@@ -52,8 +52,8 @@
           <label for="timeout">Start after (seconds)</label>
           <input id="timeout" type="number" min="10" max="86400" required>
           <label for="media">Local MP4 path or direct video URL</label>
-          <input id="media" type="text" required placeholder="/opt/chaski-player/media/screensaver.mp4">
-          <label for="video-file">Upload an MP4 to this player</label>
+          <input id="media" type="text" required placeholder="/opt/chaski-web-kiosk/media/screensaver.mp4">
+          <label for="video-file">Upload an MP4 to this kiosk</label>
           <input id="video-file" type="file" accept="video/mp4,.mp4">
           <div class="upload-line"><progress id="upload-progress" max="100" value="0"></progress><span id="upload-label">No upload running</span></div>
           <div class="actions">
@@ -90,7 +90,7 @@
 
     <section class="panel device">
       <div><p class="eyebrow">DEVICE</p><h2>System</h2><p class="subtle">Hostname: <span id="hostname">—</span></p></div>
-      <button id="reboot" class="danger" type="button">Reboot player</button>
+      <button id="reboot" class="danger" type="button">Reboot kiosk</button>
     </section>
     <footer class="credits">CHASKI Web Kiosk · Coded with OpenAI Codex</footer>
     <div id="message" role="status" aria-live="polite"></div>

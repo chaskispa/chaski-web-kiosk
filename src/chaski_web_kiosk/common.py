@@ -12,18 +12,18 @@ from typing import Any
 from urllib.parse import urlparse
 
 
-ROOT = Path(os.environ.get("CHASKI_ROOT", "/opt/chaski-player"))
-RUNTIME = Path(os.environ.get("CHASKI_RUNTIME", "/run/chaski-player"))
-CONFIG_FILE = ROOT / "config" / "player.json"
+ROOT = Path(os.environ.get("CHASKI_ROOT", "/opt/chaski-web-kiosk"))
+RUNTIME = Path(os.environ.get("CHASKI_RUNTIME", "/run/chaski-web-kiosk"))
+CONFIG_FILE = ROOT / "config" / "kiosk.json"
 MEDIA_DIR = ROOT / "media"
 STATUS_FILE = RUNTIME / "status.json"
-COMMAND_SOCKET = RUNTIME / "player.sock"
+COMMAND_SOCKET = RUNTIME / "kiosk.sock"
 VERSION_FILE = ROOT / "VERSION"
 
 
 def default_config() -> dict[str, Any]:
     return {
-        "player_name": socket.gethostname(),
+        "kiosk_name": socket.gethostname(),
         "url": "http://localhost:8080/welcome",
         "screensaver": {
             "enabled": True,
@@ -80,17 +80,17 @@ def is_remote_media(value: str) -> bool:
 def validate_config(raw: Any, *, partial: bool = False) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("Configuration must be a JSON object")
-    allowed = {"player_name", "url", "screensaver", "control_port"}
+    allowed = {"kiosk_name", "url", "screensaver", "control_port"}
     unknown = set(raw) - allowed
     if unknown:
         raise ValueError(f"Unknown configuration field: {sorted(unknown)[0]}")
 
     result = {} if partial else default_config()
-    if "player_name" in raw:
-        name = raw["player_name"]
+    if "kiosk_name" in raw:
+        name = raw["kiosk_name"]
         if not isinstance(name, str) or not name.strip() or len(name.strip()) > 64:
-            raise ValueError("Player name must contain 1 to 64 characters")
-        result["player_name"] = name.strip()
+            raise ValueError("Kiosk name must contain 1 to 64 characters")
+        result["kiosk_name"] = name.strip()
     if "url" in raw:
         result["url"] = validate_url(raw["url"])
     if "control_port" in raw:
@@ -212,5 +212,5 @@ def send_command(command: str, timeout: float = 2.0) -> dict[str, Any]:
                 break
             response += block
     if not response:
-        raise RuntimeError("Player daemon did not respond")
+        raise RuntimeError("Kiosk supervisor did not respond")
     return json.loads(response.split(b"\n", 1)[0].decode("utf-8"))

@@ -1,3 +1,0 @@
-#!/bin/sh
-cd /opt/chaski-player/app
-exec /usr/bin/python3 -m chaski_player.status "$@"

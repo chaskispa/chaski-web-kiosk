@@ -15,10 +15,9 @@ python3 -m unittest discover -s "$repo_dir/tests" -v
 bash -n "$repo_dir/install.sh"
 bash -n "$repo_dir/uninstall.sh"
 sh -n "$repo_dir/scripts/xsession"
-sh -n "$repo_dir/scripts/chaski-player-status"
 sh -n "$repo_dir/scripts/chaski-web-kiosk-status"
-sh -n "$repo_dir/scripts/chaski-player-update"
-python3 -m py_compile "$repo_dir/scripts/chaski-network"
+sh -n "$repo_dir/scripts/chaski-web-kiosk-update"
+python3 -m py_compile "$repo_dir/scripts/chaski-web-kiosk-network"
 if command -v node >/dev/null 2>&1; then
     node --check "$repo_dir/static/app.js"
     node --check "$repo_dir/static/welcome.js"

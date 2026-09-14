@@ -1,10 +1,10 @@
 {
-  "player_name": "PLAYER-001",
+  "kiosk_name": "KIOSK-001",
   "url": "http://localhost:8080/welcome",
   "screensaver": {
     "enabled": true,
     "timeout_seconds": 300,
-    "media": "/opt/chaski-player/media/screensaver.mp4"
+    "media": "/opt/chaski-web-kiosk/media/screensaver.mp4"
   },
   "control_port": 8080
 }

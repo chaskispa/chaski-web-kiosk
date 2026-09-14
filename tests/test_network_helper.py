@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "chaski-network"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "chaski-web-kiosk-network"
 loader = importlib.machinery.SourceFileLoader("chaski_network_helper", str(SCRIPT))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 network = importlib.util.module_from_spec(spec)

@@ -1,7 +1,7 @@
 [Unit]
 Description=CHASKI Web Kiosk LAN management
 After=network.target
-Before=chaski-player.service
+Before=chaski-web-kiosk.service
 StartLimitIntervalSec=120
 StartLimitBurst=10
 
@@ -9,19 +9,19 @@ StartLimitBurst=10
 Type=simple
 User=chaski
 Group=chaski
-Environment=HOME=/var/lib/chaski-player
+Environment=HOME=/var/lib/chaski-web-kiosk
 Environment=PYTHONUNBUFFERED=1
-WorkingDirectory=/opt/chaski-player/app
-RuntimeDirectory=chaski-player
+WorkingDirectory=/opt/chaski-web-kiosk/app
+RuntimeDirectory=chaski-web-kiosk
 RuntimeDirectoryMode=0755
-ExecStart=/usr/bin/python3 -m chaski_player.control
+ExecStart=/usr/bin/python3 -m chaski_web_kiosk.control
 Restart=always
 RestartSec=3
 TimeoutStopSec=10
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/chaski-player/config /opt/chaski-player/media /run/chaski-player
+ReadWritePaths=/opt/chaski-web-kiosk/config /opt/chaski-web-kiosk/media /run/chaski-web-kiosk
 RestrictSUIDSGID=true
 LockPersonality=true
 

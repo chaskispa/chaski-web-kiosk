@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-repo="/opt/chaski-player/source"
+repo="/opt/chaski-web-kiosk/source"
 if [ ! -d "$repo/.git" ]; then
     echo "Automatic update is unavailable: $repo is not a Git checkout." >&2
     echo "Update from your repository checkout with: sudo ./install.sh" >&2

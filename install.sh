@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 readonly APP_NAME="CHASKI Web Kiosk"
 readonly SERVICE_USER="chaski"
-readonly INSTALL_ROOT="/opt/chaski-player"
-readonly STATE_HOME="/var/lib/chaski-player"
+readonly INSTALL_ROOT="/opt/chaski-web-kiosk"
+readonly STATE_HOME="/var/lib/chaski-web-kiosk"
 readonly INSTALL_STATE="$STATE_HOME/install-state"
 readonly SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PACKAGE_RECORD="$INSTALL_ROOT/config/installed-packages.txt"
@@ -34,7 +34,7 @@ version_major="${version_id%%.*}"
 [[ "$version_major" =~ ^[0-9]+$ ]] || die "Cannot identify the Debian version."
 (( version_major >= 11 )) || die "Debian/Raspberry Pi OS 11 or newer is required."
 
-for required in src/chaski_player/daemon.py static/index.html systemd/chaski-player.service scripts/chaski-network scripts/chaski-web-kiosk-status; do
+for required in src/chaski_web_kiosk/daemon.py static/index.html systemd/chaski-web-kiosk.service scripts/chaski-web-kiosk-network scripts/chaski-web-kiosk-status; do
     [[ -f "$SOURCE_DIR/$required" ]] || die "Installer source is incomplete: missing $required"
 done
 
@@ -113,36 +113,36 @@ if ((${#supplementary_groups[@]})); then
 fi
 
 log "Installing application files..."
-install -d -o root -g root -m 0755 "$INSTALL_ROOT" "$INSTALL_ROOT/app" "$INSTALL_ROOT/app/chaski_player" "$INSTALL_ROOT/static" "$INSTALL_ROOT/bin" /usr/local/libexec
+install -d -o root -g root -m 0755 "$INSTALL_ROOT" "$INSTALL_ROOT/app" "$INSTALL_ROOT/app/chaski_web_kiosk" "$INSTALL_ROOT/static" "$INSTALL_ROOT/bin" /usr/local/libexec
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "$INSTALL_ROOT/config"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "$INSTALL_ROOT/media" "$STATE_HOME/chromium"
 chown "$SERVICE_USER:$SERVICE_USER" "$STATE_HOME"
 chmod 0750 "$STATE_HOME"
 
 install -o root -g root -m 0644 "$SOURCE_DIR/VERSION" "$INSTALL_ROOT/VERSION"
-install -o root -g root -m 0644 "$SOURCE_DIR/src/chaski_player/"*.py "$INSTALL_ROOT/app/chaski_player/"
+install -o root -g root -m 0644 "$SOURCE_DIR/src/chaski_web_kiosk/"*.py "$INSTALL_ROOT/app/chaski_web_kiosk/"
 install -o root -g root -m 0644 "$SOURCE_DIR/static/index.html" "$SOURCE_DIR/static/style.css" "$SOURCE_DIR/static/app.js" "$SOURCE_DIR/static/welcome.js" "$INSTALL_ROOT/static/"
 install -o root -g root -m 0755 "$SOURCE_DIR/scripts/xsession" "$INSTALL_ROOT/bin/xsession"
-install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-network" /usr/local/libexec/chaski-network
+install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-web-kiosk-network" /usr/local/libexec/chaski-web-kiosk-network
 install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0640 "$SOURCE_DIR/config/mpv-input.conf" "$INSTALL_ROOT/config/mpv-input.conf"
 
-if [[ ! -e "$INSTALL_ROOT/config/player.json" ]]; then
+if [[ ! -e "$INSTALL_ROOT/config/kiosk.json" ]]; then
     hostname_json="$(hostname | tr -cd 'A-Za-z0-9._-')"
     [[ -n "$hostname_json" ]] || hostname_json="CHASKI-WEB-KIOSK"
-    default_config_file="$(mktemp "$INSTALL_ROOT/config/.player.json.XXXXXX")"
-    PLAYER_NAME="$hostname_json" DEFAULT_CONFIG_FILE="$default_config_file" python3 - <<'PY'
+    default_config_file="$(mktemp "$INSTALL_ROOT/config/.kiosk.json.XXXXXX")"
+    KIOSK_NAME="$hostname_json" DEFAULT_CONFIG_FILE="$default_config_file" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
 
 path = Path(os.environ["DEFAULT_CONFIG_FILE"])
 config = {
-    "player_name": os.environ["PLAYER_NAME"],
+    "kiosk_name": os.environ["KIOSK_NAME"],
     "url": "http://localhost:8080/welcome",
     "screensaver": {
         "enabled": True,
         "timeout_seconds": 300,
-        "media": "/opt/chaski-player/media/screensaver.mp4",
+        "media": "/opt/chaski-web-kiosk/media/screensaver.mp4",
     },
     "control_port": 8080,
 }
@@ -153,9 +153,9 @@ with path.open("w", encoding="utf-8") as handle:
 PY
     chown "$SERVICE_USER:$SERVICE_USER" "$default_config_file"
     chmod 0640 "$default_config_file"
-    mv -f "$default_config_file" "$INSTALL_ROOT/config/player.json"
+    mv -f "$default_config_file" "$INSTALL_ROOT/config/kiosk.json"
 else
-    log "Preserving existing player.json."
+    log "Preserving existing kiosk.json."
 fi
 
 if [[ -f "$SOURCE_DIR/media/README.txt" && ! -e "$INSTALL_ROOT/media/README.txt" ]]; then
@@ -181,61 +181,60 @@ chown root:root /etc/X11/Xwrapper.config
 chmod 0644 /etc/X11/Xwrapper.config
 
 log "Installing system services and helper commands..."
-for unit in chaski-display.service chaski-player.service chaski-control.service; do
+for unit in chaski-web-kiosk-display.service chaski-web-kiosk.service chaski-web-kiosk-control.service; do
     install -o root -g root -m 0644 "$SOURCE_DIR/systemd/$unit" "/etc/systemd/system/$unit"
 done
-install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-player-status" /usr/local/bin/chaski-player-status
 install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-web-kiosk-status" /usr/local/bin/chaski-web-kiosk-status
 
 if [[ "$SOURCE_DIR" == "$INSTALL_ROOT/source" && -d "$SOURCE_DIR/.git" ]]; then
-    install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-player-update" /usr/local/sbin/chaski-player-update
+    install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-web-kiosk-update" /usr/local/sbin/chaski-web-kiosk-update
 else
-    rm -f /usr/local/sbin/chaski-player-update
+    rm -f /usr/local/sbin/chaski-web-kiosk-update
 fi
 
-cat > /etc/sudoers.d/chaski-player <<'EOF'
+cat > /etc/sudoers.d/chaski-web-kiosk <<'EOF'
 # CHASKI control panel may only request a system reboot.
 chaski ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
 # Network settings pass through a root-owned helper with strict JSON validation.
-chaski ALL=(root) NOPASSWD: /usr/local/libexec/chaski-network apply
+chaski ALL=(root) NOPASSWD: /usr/local/libexec/chaski-web-kiosk-network apply
 EOF
-chmod 0440 /etc/sudoers.d/chaski-player
-visudo -cf /etc/sudoers.d/chaski-player >/dev/null || die "Generated sudo policy failed validation."
+chmod 0440 /etc/sudoers.d/chaski-web-kiosk
+visudo -cf /etc/sudoers.d/chaski-web-kiosk >/dev/null || die "Generated sudo policy failed validation."
 
 systemctl disable --now getty@tty1.service >/dev/null 2>&1 || true
 systemctl set-default graphical.target >/dev/null
 systemctl daemon-reload
-systemctl enable chaski-display.service chaski-player.service chaski-control.service avahi-daemon.service >/dev/null
+systemctl enable chaski-web-kiosk-display.service chaski-web-kiosk.service chaski-web-kiosk-control.service avahi-daemon.service >/dev/null
 systemctl restart avahi-daemon.service || log "Warning: Avahi did not start; numeric-IP management will still work."
-systemctl restart chaski-display.service chaski-player.service chaski-control.service
+systemctl restart chaski-web-kiosk-display.service chaski-web-kiosk.service chaski-web-kiosk-control.service
 
 log "Validating installation..."
-python3 -m py_compile "$INSTALL_ROOT/app/chaski_player/"*.py
-systemd-analyze verify /etc/systemd/system/chaski-display.service /etc/systemd/system/chaski-player.service /etc/systemd/system/chaski-control.service >/dev/null
-for unit in chaski-display.service chaski-player.service chaski-control.service; do
+python3 -m py_compile "$INSTALL_ROOT/app/chaski_web_kiosk/"*.py
+systemd-analyze verify /etc/systemd/system/chaski-web-kiosk-display.service /etc/systemd/system/chaski-web-kiosk.service /etc/systemd/system/chaski-web-kiosk-control.service >/dev/null
+for unit in chaski-web-kiosk-display.service chaski-web-kiosk.service chaski-web-kiosk-control.service; do
     systemctl is-enabled --quiet "$unit" || die "$unit was not enabled."
 done
 
 ip_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [[ -n "$ip_address" ]] || ip_address="IP-ADDRESS"
-player_name="$(python3 -c 'import json; print(json.load(open("/opt/chaski-player/config/player.json"))["player_name"])')"
+kiosk_name="$(python3 -c 'import json; print(json.load(open("/opt/chaski-web-kiosk/config/kiosk.json"))["kiosk_name"])')"
 host_name="$(hostname | tr '[:upper:]' '[:lower:]')"
-control_port="$(python3 -c 'import json; print(json.load(open("/opt/chaski-player/config/player.json"))["control_port"])')"
+control_port="$(python3 -c 'import json; print(json.load(open("/opt/chaski-web-kiosk/config/kiosk.json"))["control_port"])')"
 
 cat <<EOF
 
 CHASKI Web Kiosk installed successfully.
 
 Kiosk name:
-$player_name
+$kiosk_name
 
 Management:
 http://$ip_address:$control_port
 http://$host_name.local:$control_port
 
 Commands:
-sudo systemctl status chaski-player
-sudo journalctl -u chaski-player -f
+sudo systemctl status chaski-web-kiosk
+sudo journalctl -u chaski-web-kiosk -f
 sudo chaski-web-kiosk-status
 
 Reboot recommended:

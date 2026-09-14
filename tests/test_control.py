@@ -6,8 +6,8 @@ from email.message import Message
 from pathlib import Path
 from unittest import mock
 
-from chaski_player.common import MEDIA_DIR
-from chaski_player.control import Handler
+from chaski_web_kiosk.common import MEDIA_DIR
+from chaski_web_kiosk.control import Handler
 
 
 class ControlAPITests(unittest.TestCase):
@@ -35,7 +35,7 @@ class ControlAPITests(unittest.TestCase):
 
     def test_cross_origin_browser_request_is_rejected(self) -> None:
         handler = self.handler_with(b"{}")
-        handler.headers["Host"] = "player.local:8080"
+        handler.headers["Host"] = "kiosk.local:8080"
         handler.headers["Origin"] = "http://attacker.invalid"
         self.assertFalse(handler.same_origin())
 
@@ -45,15 +45,15 @@ class ControlAPITests(unittest.TestCase):
         handler.headers["X-Filename"] = "unit-upload.mp4"
         handler.send_json = mock.Mock()
         config = {
-            "player_name": "TEST",
+            "kiosk_name": "TEST",
             "url": "https://example.org",
             "screensaver": {"enabled": True, "timeout_seconds": 300, "media": str(MEDIA_DIR / "old.mp4")},
             "control_port": 8080,
         }
         target = Path(MEDIA_DIR) / "unit-upload.mp4"
-        with mock.patch("chaski_player.control.load_config", return_value=config), mock.patch(
-            "chaski_player.control.atomic_write_json"
-        ) as write, mock.patch("chaski_player.control.send_command"):
+        with mock.patch("chaski_web_kiosk.control.load_config", return_value=config), mock.patch(
+            "chaski_web_kiosk.control.atomic_write_json"
+        ) as write, mock.patch("chaski_web_kiosk.control.send_command"):
             handler.receive_media()
         self.assertEqual(target.read_bytes(), content)
         self.assertEqual(write.call_args.args[1]["screensaver"]["media"], str(target))

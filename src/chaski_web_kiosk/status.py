@@ -20,7 +20,7 @@ def main() -> int:
         return 1
     saver = status.get("screensaver", {})
     chromium = status.get("chromium", {})
-    print(f"Kiosk:       {status.get('player_name', 'unknown')}")
+    print(f"Kiosk:       {status.get('kiosk_name', 'unknown')}")
     print(f"State:       {status.get('state', 'unknown')} ({status.get('state_detail', '')})")
     print(f"Address:     http://{status.get('ip', 'unavailable')}:{config['control_port']}")
     print(f"URL:         {status.get('configured_url', '')}")

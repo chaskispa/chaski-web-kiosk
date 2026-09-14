@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly INSTALL_ROOT="/opt/chaski-player"
-readonly STATE_HOME="/var/lib/chaski-player"
+readonly INSTALL_ROOT="/opt/chaski-web-kiosk"
+readonly STATE_HOME="/var/lib/chaski-web-kiosk"
 readonly INSTALL_STATE="$STATE_HOME/install-state"
 purge=false
 remove_deps=false
@@ -37,9 +37,9 @@ if $remove_deps && [[ -s "$package_record" ]]; then
     cp "$package_record" "$record_copy"
 fi
 
-systemctl disable --now chaski-control.service chaski-player.service chaski-display.service >/dev/null 2>&1 || true
-rm -f /etc/systemd/system/chaski-control.service /etc/systemd/system/chaski-player.service /etc/systemd/system/chaski-display.service
-rm -f /etc/sudoers.d/chaski-player /usr/local/bin/chaski-player-status /usr/local/bin/chaski-web-kiosk-status /usr/local/sbin/chaski-player-update /usr/local/libexec/chaski-network
+systemctl disable --now chaski-web-kiosk-control.service chaski-web-kiosk.service chaski-web-kiosk-display.service >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/chaski-web-kiosk-control.service /etc/systemd/system/chaski-web-kiosk.service /etc/systemd/system/chaski-web-kiosk-display.service
+rm -f /etc/sudoers.d/chaski-web-kiosk /usr/local/bin/chaski-web-kiosk-status /usr/local/sbin/chaski-web-kiosk-update /usr/local/libexec/chaski-web-kiosk-network
 systemctl daemon-reload
 systemctl reset-failed >/dev/null 2>&1 || true
 

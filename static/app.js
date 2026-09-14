@@ -37,10 +37,10 @@ async function refreshStatus() {
     const s = await api("/api/status");
     $("#connection").textContent = "Online";
     $("#connection").className = "badge";
-    $("#player-name").textContent = s.player_name || "Unnamed player";
+    $("#kiosk-name").textContent = s.kiosk_name || "Unnamed kiosk";
     $("#address").textContent = `http://${s.ip}:${location.port || 80}`;
     $("#state").textContent = s.state || "UNKNOWN";
-    $("#state-detail").textContent = s.state_detail || "No player status yet";
+    $("#state-detail").textContent = s.state_detail || "No kiosk status yet";
     $("#chromium").textContent = s.chromium?.running ? "Running" : "Stopped";
     $("#saver-status").textContent = s.screensaver?.running ? "Playing" : (s.screensaver?.enabled ? "Armed" : "Disabled");
     $("#uptime").textContent = duration(s.uptime_seconds);
@@ -175,7 +175,7 @@ $("#restart").addEventListener("click", () => post("/api/restart-playback"));
 $("#saver-start").addEventListener("click", () => post("/api/screensaver/start"));
 $("#saver-stop").addEventListener("click", () => post("/api/screensaver/stop"));
 $("#reboot").addEventListener("click", () => {
-  if (window.confirm("Reboot this player now?")) post("/api/reboot");
+  if (window.confirm("Reboot this kiosk now?")) post("/api/reboot");
 });
 $("#network-mode").addEventListener("change", () => {
   $("#static-fields").classList.toggle("hidden", $("#network-mode").value !== "static");
