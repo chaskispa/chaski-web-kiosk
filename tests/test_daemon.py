@@ -143,12 +143,36 @@ class DaemonTests(unittest.TestCase):
         daemon.mpv = process
         daemon.mpv_started_at = 1
         daemon.last_idle_ms = 30_000
-        with mock.patch.object(daemon, "idle_milliseconds", return_value=31_000), mock.patch.object(
+        daemon.input_fds = {99: Path("/dev/input/event-test")}
+        with mock.patch.object(daemon, "physical_input_detected", return_value=False), mock.patch.object(
+            daemon, "idle_milliseconds", return_value=31_000
+        ), mock.patch.object(
             daemon, "start_screensaver", return_value=True
         ) as start:
             daemon.check_screensaver()
         start.assert_called_once_with(manual=True, refresh_content=False)
         self.assertFalse(daemon.saver_dismissed)
+
+    def test_physical_activity_rearms_a_full_30_second_cycle(self) -> None:
+        daemon = KioskDaemon()
+        daemon.config = {"screensaver": {"enabled": True, "timeout_seconds": 30}}
+        daemon.input_fds = {99: Path("/dev/input/event-test")}
+        with mock.patch.object(daemon, "physical_input_detected", return_value=True), mock.patch.object(
+            daemon, "idle_milliseconds", return_value=0
+        ), mock.patch("chaski_web_kiosk.daemon.time.monotonic", return_value=100), mock.patch.object(
+            daemon, "start_screensaver"
+        ) as start:
+            daemon.check_screensaver()
+        start.assert_not_called()
+        self.assertEqual(daemon.last_physical_activity_at, 100)
+
+        with mock.patch.object(daemon, "physical_input_detected", return_value=False), mock.patch.object(
+            daemon, "idle_milliseconds", return_value=0
+        ), mock.patch("chaski_web_kiosk.daemon.time.monotonic", return_value=130), mock.patch.object(
+            daemon, "start_screensaver"
+        ) as start:
+            daemon.check_screensaver()
+        start.assert_called_once_with()
 
 
 if __name__ == "__main__":

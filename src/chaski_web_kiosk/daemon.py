@@ -85,6 +85,7 @@ class KioskDaemon:
         self.mpv_started_at = 0.0
         self.saver_dismissed = False
         self.last_idle_ms: int | None = None
+        self.last_physical_activity_at = time.monotonic()
         self.input_fds: dict[int, Path] = {}
         self.last_input_device_scan = -10.0
         self.last_status: dict[str, Any] | None = None
@@ -411,29 +412,39 @@ class KioskDaemon:
             self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     def check_screensaver(self) -> None:
+        now = time.monotonic()
         physical_activity = self.physical_input_detected()
         idle = self.idle_milliseconds()
         idle_reset = self.last_idle_ms is not None and idle + 500 < self.last_idle_ms
         self.last_idle_ms = idle
-        # xprintidle can reset when a fullscreen video loops. It remains a safe
-        # fallback only when evdev access is unavailable.
-        activity = physical_activity or (not self.input_fds and idle_reset)
-        if activity:
+        has_physical_monitor = bool(self.input_fds)
+        if physical_activity:
+            self.last_physical_activity_at = now
+            self.saver_dismissed = False
+        elif not has_physical_monitor and idle_reset and self.mpv is None:
+            # Clear a manual dismissal after genuine activity when evdev is not
+            # available. X idle is never allowed to dismiss a running video.
             self.saver_dismissed = False
         if self.mpv is not None:
-            if activity and time.monotonic() - self.mpv_started_at > 0.5:
+            if physical_activity and now - self.mpv_started_at > 0.5:
                 self.stop_screensaver()
                 return
             code = self.mpv.poll()
             if code is not None:
                 self.mpv = None
+                if code == 0 and not has_physical_monitor:
+                    # Without evdev, mpv's own input bindings are the reliable
+                    # fallback signal that a person dismissed the saver.
+                    self.transition(KioskState.WEB_CONTENT, "screensaver dismissed; Chromium ready")
+                    return
                 LOG.warning("screensaver exited without local input (%s); restarting", code)
                 self.mpv_next_start = 0.0
                 if not self.start_screensaver(manual=True, refresh_content=False):
                     self.transition(KioskState.WEB_CONTENT, "screensaver stopped; retry pending")
             return
         saver = self.config.get("screensaver", {})
-        if saver.get("enabled") and idle >= int(saver.get("timeout_seconds", 30)) * 1000:
+        inactivity_ms = int((now - self.last_physical_activity_at) * 1000) if has_physical_monitor else idle
+        if saver.get("enabled") and inactivity_ms >= int(saver.get("timeout_seconds", 30)) * 1000:
             self.start_screensaver()
 
     def process_commands(self) -> None:
