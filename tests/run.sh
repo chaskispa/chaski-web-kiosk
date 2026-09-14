@@ -7,8 +7,9 @@ trap 'rm -rf "$test_dir"' EXIT INT TERM
 export PYTHONPATH="$repo_dir/src"
 export CHASKI_ROOT="$test_dir/root"
 export CHASKI_RUNTIME="$test_dir/run"
+export CHASKI_STATE_HOME="$test_dir/state"
 export PYTHONPYCACHEPREFIX="$test_dir/pycache"
-mkdir -p "$CHASKI_ROOT/media" "$CHASKI_RUNTIME"
+mkdir -p "$CHASKI_ROOT/media" "$CHASKI_RUNTIME" "$CHASKI_STATE_HOME"
 
 python3 -m compileall -q "$repo_dir/src"
 python3 -m unittest discover -s "$repo_dir/tests" -v

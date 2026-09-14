@@ -3,37 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#dededd">
   <title>CHASKI Web Kiosk</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="admin-page">
+  <div class="signal-line" aria-hidden="true"></div>
+  <aside class="brand-rail" aria-label="CHASKI">
+    <img src="/static/Logo.png" alt="CHASKI">
+  </aside>
+
   <header class="topbar">
-    <div><span class="brand-mark">C</span><span class="brand">CHASKI WEB KIOSK</span></div>
+    <div class="product-title"><span class="index">[0.1]</span><span>WEB KIOSK / ADMIN</span></div>
     <span id="connection" class="badge muted">Connecting</span>
   </header>
+
   <main class="dashboard">
     <section class="hero panel">
-      <div>
-        <p class="eyebrow">KIOSK</p>
+      <div class="hero-copy">
+        <p class="eyebrow"><span>[1]</span> DEVICE STATUS</p>
         <h1 id="kiosk-name">—</h1>
         <p id="address" class="subtle">Loading device status…</p>
       </div>
       <div class="state-block">
-        <span id="state" class="state">—</span>
+        <span class="field-label">CURRENT STATE</span>
+        <strong id="state" class="state">—</strong>
         <small id="state-detail">—</small>
       </div>
     </section>
 
-    <section class="metrics">
-      <article class="panel metric"><span>Chromium</span><strong id="chromium">—</strong></article>
-      <article class="panel metric"><span>Screensaver</span><strong id="saver-status">—</strong></article>
-      <article class="panel metric"><span>Uptime</span><strong id="uptime">—</strong></article>
-      <article class="panel metric"><span>Version</span><strong id="version">—</strong></article>
+    <section class="metrics" aria-label="Kiosk metrics">
+      <article class="panel metric"><span>[1.1] Chromium</span><strong id="chromium">—</strong></article>
+      <article class="panel metric"><span>[1.2] Screensaver</span><strong id="saver-status">—</strong></article>
+      <article class="panel metric"><span>[1.3] Uptime</span><strong id="uptime">—</strong></article>
+      <article class="panel metric"><span>[1.4] Version</span><strong id="version">—</strong></article>
     </section>
 
     <section class="columns">
       <article class="panel">
-        <div class="section-title"><div><p class="eyebrow">PLAYBACK</p><h2>Web content</h2></div></div>
+        <div class="section-title"><div><p class="eyebrow"><span>[2]</span> PLAYBACK</p><h2>Web content</h2></div></div>
         <form id="url-form">
           <label for="url">Content URL</label>
           <input id="url" name="url" type="url" maxlength="2048" required placeholder="https://example.com/display">
@@ -46,7 +54,7 @@
       </article>
 
       <article class="panel">
-        <div class="section-title"><div><p class="eyebrow">IDLE CONTENT</p><h2>Screensaver</h2></div></div>
+        <div class="section-title"><div><p class="eyebrow"><span>[3]</span> IDLE CONTENT</p><h2>Screensaver</h2></div></div>
         <form id="saver-form">
           <label class="toggle-row" for="saver-enabled"><span>Enable screensaver</span><input id="saver-enabled" type="checkbox"></label>
           <label for="timeout">Start after (seconds)</label>
@@ -67,7 +75,10 @@
     </section>
 
     <section class="panel network-panel">
-      <div class="section-title"><div><p class="eyebrow">CONNECTIVITY</p><h2>Network</h2></div><span id="network-backend" class="badge muted">Checking</span></div>
+      <div class="section-title">
+        <div><p class="eyebrow"><span>[4]</span> CONNECTIVITY</p><h2>Network</h2></div>
+        <span id="network-backend" class="badge muted">Checking</span>
+      </div>
       <p id="network-message" class="subtle">Loading network interfaces…</p>
       <form id="network-form">
         <div class="form-grid">
@@ -89,10 +100,11 @@
     </section>
 
     <section class="panel device">
-      <div><p class="eyebrow">DEVICE</p><h2>System</h2><p class="subtle">Hostname: <span id="hostname">—</span></p></div>
+      <div><p class="eyebrow"><span>[5]</span> DEVICE</p><h2>System</h2><p class="subtle">Hostname: <span id="hostname">—</span></p></div>
       <button id="reboot" class="danger" type="button">Reboot kiosk</button>
     </section>
-    <footer class="credits">CHASKI Web Kiosk · Coded with OpenAI Codex</footer>
+
+    <footer class="credits"><span>CHASKI Web Kiosk</span><span>Designed by CHASKI · Coded with OpenAI Codex</span></footer>
     <div id="message" role="status" aria-live="polite"></div>
   </main>
   <script src="/static/app.js"></script>

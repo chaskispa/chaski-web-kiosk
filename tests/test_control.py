@@ -39,6 +39,13 @@ class ControlAPITests(unittest.TestCase):
         handler.headers["Origin"] = "http://attacker.invalid"
         self.assertFalse(handler.same_origin())
 
+    def test_logo_asset_is_served_with_png_content_type(self) -> None:
+        handler = self.handler_with(b"")
+        handler.path = "/static/Logo.png"
+        handler.send_static = mock.Mock()
+        handler.do_GET()
+        handler.send_static.assert_called_once_with("Logo.png", "image/png")
+
     def test_mp4_upload_is_streamed_selected_and_atomically_saved(self) -> None:
         content = b"\x00\x00\x00\x18ftypisom" + b"video-payload"
         handler = self.handler_with(content, "video/mp4")

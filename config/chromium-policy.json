@@ -1,0 +1,11 @@
+{
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "BrowserSignin": 0,
+  "DefaultBrowserSettingEnabled": false,
+  "MetricsReportingEnabled": false,
+  "PasswordManagerEnabled": false,
+  "PromotionalTabsEnabled": false,
+  "SyncDisabled": true,
+  "TranslateEnabled": false
+}

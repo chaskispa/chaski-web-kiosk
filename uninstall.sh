@@ -40,6 +40,7 @@ fi
 systemctl disable --now chaski-web-kiosk-control.service chaski-web-kiosk.service chaski-web-kiosk-display.service >/dev/null 2>&1 || true
 rm -f /etc/systemd/system/chaski-web-kiosk-control.service /etc/systemd/system/chaski-web-kiosk.service /etc/systemd/system/chaski-web-kiosk-display.service
 rm -f /etc/sudoers.d/chaski-web-kiosk /usr/local/bin/chaski-web-kiosk-status /usr/local/sbin/chaski-web-kiosk-update /usr/local/libexec/chaski-web-kiosk-network
+rm -f /etc/chromium/policies/managed/chaski-web-kiosk.json /etc/chromium-browser/policies/managed/chaski-web-kiosk.json
 systemctl daemon-reload
 systemctl reset-failed >/dev/null 2>&1 || true
 

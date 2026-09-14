@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .common import COMMAND_SOCKET, CONFIG_FILE, ROOT, RUNTIME, STATUS_FILE, atomic_write_json, is_remote_media, load_config
+from .common import COMMAND_SOCKET, CONFIG_FILE, ROOT, RUNTIME, STATE_HOME, STATUS_FILE, atomic_write_json, is_remote_media, load_config
 
 
 LOG = logging.getLogger("chaski-web-kiosk")
@@ -133,7 +133,7 @@ class KioskDaemon:
         binary = self.executable("chromium", "chromium-browser")
         cache = RUNTIME / "chromium-cache"
         cache.mkdir(parents=True, exist_ok=True)
-        profile = Path("/var/lib/chaski-web-kiosk/chromium")
+        profile = STATE_HOME / "chromium"
         profile.mkdir(parents=True, exist_ok=True)
         return [
             binary,
@@ -141,9 +141,15 @@ class KioskDaemon:
             "--no-first-run",
             "--no-default-browser-check",
             "--noerrdialogs",
+            "--disable-translate",
+            "--disable-sync",
+            "--disable-background-networking",
+            "--disable-domain-reliability",
+            "--disable-notifications",
+            "--disable-save-password-bubble",
             "--disable-session-crashed-bubble",
             "--disable-component-update",
-            "--disable-features=Translate,MediaRouter,AutofillServerCommunication",
+            "--disable-features=Translate,TranslateUI,MediaRouter,AutofillServerCommunication",
             "--disable-pinch",
             "--overscroll-history-navigation=0",
             "--autoplay-policy=no-user-gesture-required",

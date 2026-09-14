@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -9,6 +10,21 @@ from chaski_web_kiosk.daemon import KioskDaemon, KioskState
 
 
 class DaemonTests(unittest.TestCase):
+    def test_chromium_translation_ui_is_disabled(self) -> None:
+        daemon = KioskDaemon()
+        daemon.config = {"url": "https://example.org"}
+        with mock.patch.object(daemon, "executable", return_value="/usr/bin/chromium"):
+            command = daemon.chromium_command()
+        self.assertIn("--disable-translate", command)
+        feature_flag = next(item for item in command if item.startswith("--disable-features="))
+        self.assertIn("Translate", feature_flag)
+        self.assertIn("TranslateUI", feature_flag)
+
+    def test_managed_policy_disables_translation(self) -> None:
+        policy_path = Path(__file__).resolve().parents[1] / "config" / "chromium-policy.json"
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        self.assertIs(policy["TranslateEnabled"], False)
+
     def test_start_is_idempotent_while_chromium_runs(self) -> None:
         daemon = KioskDaemon()
         daemon.config = {"url": "https://example.org"}

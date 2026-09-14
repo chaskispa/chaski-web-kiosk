@@ -86,11 +86,17 @@ class Handler(BaseHTTPRequestHandler):
         address = local_ip()
         body = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CHASKI WEB KIOSK</title><link rel="stylesheet" href="/static/style.css"></head>
-<body class="welcome"><main><div class="mark">C</div><h1>CHASKI WEB KIOSK</h1><p class="ready">Kiosk ready.</p>
-<section><p>Management</p><strong id="welcome-management">http://{html.escape(address)}:{config['control_port']}</strong>
-<p>Current IP</p><strong id="welcome-ip">{html.escape(address)}</strong></section>
-<footer class="credits">CHASKI Web Kiosk · Coded with OpenAI Codex</footer></main>
+<meta name="theme-color" content="#dededd"><title>CHASKI Web Kiosk</title>
+<link rel="stylesheet" href="/static/style.css"></head>
+<body class="welcome"><div class="signal-line" aria-hidden="true"></div>
+<aside class="brand-rail" aria-label="CHASKI"><img src="/static/Logo.png" alt="CHASKI"></aside>
+<div class="welcome-shell"><header class="welcome-header"><span>[0.1]</span><span>WEB KIOSK / DISPLAY</span></header>
+<main class="welcome-main"><section class="welcome-lead"><p class="welcome-kicker"><span>[1]</span> SYSTEM STATUS</p>
+<div><h1>READY.</h1><p class="ready">CHASKI Web Kiosk is online</p></div></section>
+<section class="welcome-details"><div class="detail"><p>Management</p>
+<strong id="welcome-management">http://{html.escape(address)}:{config['control_port']}</strong></div>
+<div class="detail"><p>Current IP</p><strong id="welcome-ip">{html.escape(address)}</strong></div></section></main>
+<footer class="welcome-footer"><span>CHASKI Web Kiosk</span><span>Designed by CHASKI · Coded with OpenAI Codex</span></footer></div>
 <script src="/static/welcome.js"></script></body></html>"""
         self.send_bytes(HTTPStatus.OK, body.encode("utf-8"), "text/html; charset=utf-8")
 
@@ -142,6 +148,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_static("app.js", "text/javascript; charset=utf-8")
             elif path == "/static/welcome.js":
                 self.send_static("welcome.js", "text/javascript; charset=utf-8")
+            elif path == "/static/Logo.png":
+                self.send_static("Logo.png", "image/png")
             elif path == "/welcome":
                 self.welcome()
             elif path == "/api/status":

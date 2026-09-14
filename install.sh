@@ -34,7 +34,7 @@ version_major="${version_id%%.*}"
 [[ "$version_major" =~ ^[0-9]+$ ]] || die "Cannot identify the Debian version."
 (( version_major >= 11 )) || die "Debian/Raspberry Pi OS 11 or newer is required."
 
-for required in src/chaski_web_kiosk/daemon.py static/index.html systemd/chaski-web-kiosk.service scripts/chaski-web-kiosk-network scripts/chaski-web-kiosk-status; do
+for required in src/chaski_web_kiosk/daemon.py static/index.html static/Logo.png systemd/chaski-web-kiosk.service scripts/chaski-web-kiosk-network scripts/chaski-web-kiosk-status config/chromium-policy.json; do
     [[ -f "$SOURCE_DIR/$required" ]] || die "Installer source is incomplete: missing $required"
 done
 
@@ -121,10 +121,15 @@ chmod 0750 "$STATE_HOME"
 
 install -o root -g root -m 0644 "$SOURCE_DIR/VERSION" "$INSTALL_ROOT/VERSION"
 install -o root -g root -m 0644 "$SOURCE_DIR/src/chaski_web_kiosk/"*.py "$INSTALL_ROOT/app/chaski_web_kiosk/"
-install -o root -g root -m 0644 "$SOURCE_DIR/static/index.html" "$SOURCE_DIR/static/style.css" "$SOURCE_DIR/static/app.js" "$SOURCE_DIR/static/welcome.js" "$INSTALL_ROOT/static/"
+install -o root -g root -m 0644 "$SOURCE_DIR/static/index.html" "$SOURCE_DIR/static/style.css" "$SOURCE_DIR/static/app.js" "$SOURCE_DIR/static/welcome.js" "$SOURCE_DIR/static/Logo.png" "$INSTALL_ROOT/static/"
 install -o root -g root -m 0755 "$SOURCE_DIR/scripts/xsession" "$INSTALL_ROOT/bin/xsession"
 install -o root -g root -m 0755 "$SOURCE_DIR/scripts/chaski-web-kiosk-network" /usr/local/libexec/chaski-web-kiosk-network
 install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0640 "$SOURCE_DIR/config/mpv-input.conf" "$INSTALL_ROOT/config/mpv-input.conf"
+
+# Managed policy is authoritative even when Chromium changes or ignores UI flags.
+install -d -o root -g root -m 0755 /etc/chromium/policies/managed /etc/chromium-browser/policies/managed
+install -o root -g root -m 0644 "$SOURCE_DIR/config/chromium-policy.json" /etc/chromium/policies/managed/chaski-web-kiosk.json
+install -o root -g root -m 0644 "$SOURCE_DIR/config/chromium-policy.json" /etc/chromium-browser/policies/managed/chaski-web-kiosk.json
 
 if [[ ! -e "$INSTALL_ROOT/config/kiosk.json" ]]; then
     hostname_json="$(hostname | tr -cd 'A-Za-z0-9._-')"

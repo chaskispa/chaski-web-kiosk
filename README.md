@@ -79,6 +79,8 @@ Chromium remains underneath mpv. Any normal keyboard, mouse, or touch input exit
 
 The kiosk polls the configured origin lightly. If boot occurs offline, playback and management still start. Once the origin becomes reachable, Chromium is restarted once to replace its network error page. No boot target depends on `network-online.target`.
 
+Chromium is launched with translation, sync, password prompts, notifications, and background networking disabled. The installer also writes a managed Chromium policy with `TranslateEnabled: false` to both Debian/Raspberry Pi policy locations. The managed policy prevents translation bubbles even when a Chromium release ignores or changes the corresponding command-line UI flag.
+
 Persistent data lives under `/opt/chaski-web-kiosk/config` and `/opt/chaski-web-kiosk/media`. Browser cache, the command socket, and status snapshots live under `/run/chaski-web-kiosk` (tmpfs) to avoid SD-card wear. The persistent Chromium profile is only used for essential browser state; its disk cache is redirected to `/run`.
 
 ## 4. Configuration
@@ -233,6 +235,10 @@ Confirm HDMI was connected during boot, then restart both units. Some displays r
 **Chromium repeatedly restarts**
 
 Check `sudo journalctl -u chaski-web-kiosk -b`. Confirm the Pi clock is correct for HTTPS sites, the URL is valid, and memory is not exhausted. Renderer health requires local port 9222; do not bind another program there.
+
+**A Chromium translation prompt appears**
+
+Run `sudo ./install.sh` from the current checkout, then restart the kiosk service. Confirm `/etc/chromium/policies/managed/chaski-web-kiosk.json` exists. The policy takes effect when Chromium starts; no profile reset is required.
 
 **The web page is unavailable**
 

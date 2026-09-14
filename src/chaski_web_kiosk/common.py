@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(os.environ.get("CHASKI_ROOT", "/opt/chaski-web-kiosk"))
 RUNTIME = Path(os.environ.get("CHASKI_RUNTIME", "/run/chaski-web-kiosk"))
+STATE_HOME = Path(os.environ.get("CHASKI_STATE_HOME", "/var/lib/chaski-web-kiosk"))
 CONFIG_FILE = ROOT / "config" / "kiosk.json"
 MEDIA_DIR = ROOT / "media"
 STATUS_FILE = RUNTIME / "status.json"
