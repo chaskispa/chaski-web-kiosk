@@ -17,9 +17,10 @@ import subprocess
 import threading
 import time
 from enum import Enum
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from .common import COMMAND_SOCKET, CONFIG_FILE, ROOT, RUNTIME, STATE_HOME, STATUS_FILE, atomic_write_json, is_remote_media, load_config
 
@@ -395,12 +396,38 @@ class KioskDaemon:
         return True
 
     def reload_content_behind_screensaver(self) -> None:
-        """Load a fresh start page while fullscreen video hides Chromium."""
-        LOG.info("screensaver started; refreshing web content in the background")
-        self.terminate(self.chromium, "Chromium")
-        self.chromium = None
-        self.chromium_next_start = 0.0
-        self.start_chromium()
+        """Replace Chromium's page without remapping its fullscreen X window."""
+        connection: http.client.HTTPConnection | None = None
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", 9222, timeout=3)
+
+            def request(method: str, path: str) -> bytes:
+                assert connection is not None
+                connection.request(method, path)
+                response = connection.getresponse()
+                payload = response.read(262144)
+                if response.status != HTTPStatus.OK:
+                    raise RuntimeError(f"DevTools returned HTTP {response.status}")
+                return payload
+
+            current = json.loads(request("GET", "/json/list"))
+            old_pages = [item for item in current if item.get("type") == "page" and item.get("id")]
+            target = json.loads(request("PUT", f"/json/new?{quote(self.config['url'], safe='')}"))
+            target_id = str(target.get("id", ""))
+            if not target_id:
+                raise RuntimeError("DevTools did not return a new page target")
+            request("GET", f"/json/activate/{quote(target_id, safe='')}")
+            for page in old_pages:
+                old_id = str(page["id"])
+                if old_id != target_id:
+                    request("GET", f"/json/close/{quote(old_id, safe='')}")
+            LOG.info("screensaver started; Chromium tab returned to configured start page")
+            self.transition(KioskState.SCREENSAVER, "screensaver playing; web content refreshed")
+        except (OSError, ValueError, KeyError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:
+            LOG.warning("could not refresh web content behind screensaver: %s", exc)
+        finally:
+            if connection is not None:
+                connection.close()
 
     def stop_screensaver(self, *, dismiss: bool = False) -> None:
         was_running = self.mpv is not None

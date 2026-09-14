@@ -65,6 +65,40 @@ class DaemonTests(unittest.TestCase):
         self.assertIn("--loop-playlist=inf", command)
         self.assertIn("--gapless-audio=yes", command)
 
+    def test_background_refresh_replaces_tab_without_restarting_chromium(self) -> None:
+        daemon = KioskDaemon()
+        daemon.config = {"url": "https://example.org/root?display=1"}
+        daemon.chromium = mock.Mock()
+        connection = mock.Mock()
+
+        def response(payload: object) -> mock.Mock:
+            item = mock.Mock()
+            item.status = 200
+            item.read.return_value = json.dumps(payload).encode("utf-8") if payload != b"" else b""
+            return item
+
+        connection.getresponse.side_effect = [
+            response([{"id": "old-page", "type": "page"}]),
+            response({"id": "fresh-page", "type": "page"}),
+            response(b""),
+            response(b""),
+        ]
+        with mock.patch("chaski_web_kiosk.daemon.http.client.HTTPConnection", return_value=connection), mock.patch.object(
+            daemon, "terminate"
+        ) as terminate, mock.patch.object(daemon, "start_chromium") as start_chromium, mock.patch.object(
+            daemon, "transition"
+        ) as transition:
+            daemon.reload_content_behind_screensaver()
+
+        requests = [call.args for call in connection.request.call_args_list]
+        self.assertEqual(requests[0], ("GET", "/json/list"))
+        self.assertEqual(requests[1], ("PUT", "/json/new?https%3A%2F%2Fexample.org%2Froot%3Fdisplay%3D1"))
+        self.assertEqual(requests[2], ("GET", "/json/activate/fresh-page"))
+        self.assertEqual(requests[3], ("GET", "/json/close/old-page"))
+        terminate.assert_not_called()
+        start_chromium.assert_not_called()
+        transition.assert_called_once_with(KioskState.SCREENSAVER, "screensaver playing; web content refreshed")
+
     def test_unexpected_chromium_exit_enters_error_with_backoff(self) -> None:
         daemon = KioskDaemon()
         daemon.state = KioskState.WEB_CONTENT
