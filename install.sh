@@ -146,7 +146,7 @@ config = {
     "url": "http://localhost:8080/welcome",
     "screensaver": {
         "enabled": True,
-        "timeout_seconds": 300,
+        "timeout_seconds": 30,
         "media": "/opt/chaski-web-kiosk/media/screensaver.mp4",
     },
     "control_port": 8080,

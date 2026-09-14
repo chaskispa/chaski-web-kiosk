@@ -28,7 +28,7 @@ def default_config() -> dict[str, Any]:
         "url": "http://localhost:8080/welcome",
         "screensaver": {
             "enabled": True,
-            "timeout_seconds": 300,
+            "timeout_seconds": 30,
             "media": str(MEDIA_DIR / "screensaver.mp4"),
         },
         "control_port": 8080,

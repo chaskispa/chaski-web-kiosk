@@ -65,11 +65,42 @@ class DaemonTests(unittest.TestCase):
         daemon = KioskDaemon()
         daemon.mpv = mock.Mock()
         daemon.mpv_started_at = 1
+        daemon.last_idle_ms = 30_000
         with mock.patch.object(daemon, "idle_milliseconds", return_value=0), mock.patch.object(
             daemon, "stop_screensaver"
         ) as stop, mock.patch("chaski_web_kiosk.daemon.time.monotonic", return_value=2):
             daemon.check_screensaver()
-        stop.assert_called_once_with()
+        stop.assert_called_once_with(refresh_content=True)
+
+    def test_screensaver_starts_at_configured_30_second_idle_timeout(self) -> None:
+        daemon = KioskDaemon()
+        daemon.config = {"screensaver": {"enabled": True, "timeout_seconds": 30}}
+        daemon.last_idle_ms = 29_000
+        with mock.patch.object(daemon, "idle_milliseconds", return_value=30_000), mock.patch.object(
+            daemon, "start_screensaver"
+        ) as start:
+            daemon.check_screensaver()
+        start.assert_called_once_with()
+
+    def test_chromium_restart_without_video_does_not_disable_screensaver(self) -> None:
+        daemon = KioskDaemon()
+        daemon.saver_dismissed = False
+        daemon.stop_chromium()
+        self.assertFalse(daemon.saver_dismissed)
+
+    def test_wake_restarts_chromium_at_configured_start_page(self) -> None:
+        daemon = KioskDaemon()
+        daemon.mpv = mock.Mock()
+        daemon.chromium = mock.Mock()
+        with mock.patch.object(daemon, "terminate") as terminate, mock.patch(
+            "chaski_web_kiosk.daemon.time.monotonic", return_value=10
+        ):
+            daemon.stop_screensaver(refresh_content=True)
+        self.assertEqual(terminate.call_count, 2)
+        self.assertIsNone(daemon.mpv)
+        self.assertIsNone(daemon.chromium)
+        self.assertEqual(daemon.chromium_next_start, 10.1)
+        self.assertEqual(daemon.state, KioskState.STARTING)
 
 
 if __name__ == "__main__":

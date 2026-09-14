@@ -93,7 +93,7 @@ The persistent file is `/opt/chaski-web-kiosk/config/kiosk.json`:
   "url": "http://localhost:8080/welcome",
   "screensaver": {
     "enabled": true,
-    "timeout_seconds": 300,
+    "timeout_seconds": 30,
     "media": "/opt/chaski-web-kiosk/media/screensaver.mp4"
   },
   "control_port": 8080
@@ -144,9 +144,9 @@ Current Raspberry Pi OS Lite releases use NetworkManager. On an older image usin
 
 ## 6. Screensaver
 
-At the configured idle threshold (default 300 seconds), mpv opens the configured H.264 MP4 fullscreen, above Chromium, looping without controls. The source may be a local file under `/opt/chaski-web-kiosk/media` or a direct HTTP(S) video URL. Local media is recommended for reliable offline playback. `hwdec=auto-safe` uses hardware decoding when the Pi's driver and file support it.
+At the configured idle threshold (default 30 seconds), mpv opens the configured H.264 MP4 fullscreen, above Chromium, looping without controls. The source may be a local file under `/opt/chaski-web-kiosk/media` or a direct HTTP(S) video URL. Local media is recommended for reliable offline playback. `hwdec=auto-safe` uses hardware decoding when the Pi's driver and file support it.
 
-Keyboard, mouse movement/click, and touchscreen input quit mpv. A clean exit is treated as user dismissal until activity resets the idle timer. An unexpected mpv failure is retried with a delay. A missing or corrupt file is reported in status and logs without disturbing web playback or causing a rapid restart loop.
+Keyboard, mouse movement/click, and touchscreen input quit mpv. On wake, Chromium is restarted at the configured content URL so the experience always returns to its start page. A clean exit is treated as user dismissal until activity resets the idle timer. An unexpected mpv failure is retried with a delay. A missing or corrupt file is reported in status and logs without disturbing web playback or causing a rapid restart loop.
 
 ## 7. Media replacement
 

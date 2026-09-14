@@ -78,6 +78,7 @@ class KioskDaemon:
         self.mpv_next_start = 0.0
         self.mpv_started_at = 0.0
         self.saver_dismissed = False
+        self.last_idle_ms: int | None = None
         self.last_status: dict[str, Any] | None = None
         self.last_status_write = 0.0
         self.last_watchdog = 0.0
@@ -309,33 +310,46 @@ class KioskDaemon:
         self.transition(KioskState.SCREENSAVER, "screensaver playing")
         return True
 
-    def stop_screensaver(self) -> None:
+    def stop_screensaver(self, *, dismiss: bool = False, refresh_content: bool = False) -> None:
+        was_running = self.mpv is not None
         self.terminate(self.mpv, "mpv")
         self.mpv = None
-        self.saver_dismissed = True
-        if self.chromium is not None and self.chromium.poll() is None:
+        if dismiss and was_running:
+            self.saver_dismissed = True
+        if refresh_content and was_running:
+            # A fresh Chromium process reliably returns the display to the configured
+            # start URL even when the previous page changed its history or location.
+            self.terminate(self.chromium, "Chromium")
+            self.chromium = None
+            self.chromium_next_start = time.monotonic() + 0.1
+            self.transition(KioskState.STARTING, "returning to configured start page")
+        elif self.chromium is not None and self.chromium.poll() is None:
             self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     def check_screensaver(self) -> None:
         idle = self.idle_milliseconds()
-        if idle < 2000:
+        activity = self.last_idle_ms is not None and idle + 500 < self.last_idle_ms
+        self.last_idle_ms = idle
+        if activity:
             self.saver_dismissed = False
         if self.mpv is not None:
-            if idle < 1000 and time.monotonic() - self.mpv_started_at > 0.5:
-                self.stop_screensaver()
+            if activity and time.monotonic() - self.mpv_started_at > 0.5:
+                self.stop_screensaver(refresh_content=True)
                 return
             code = self.mpv.poll()
             if code is not None:
-                self.mpv = None
                 if code == 0:
-                    self.saver_dismissed = True
+                    # mpv's input bindings exit cleanly on a mouse, keyboard, or
+                    # touch event. Refresh the configured start page on wake.
+                    self.stop_screensaver(dismiss=not activity, refresh_content=True)
                 else:
+                    self.mpv = None
                     LOG.warning("mpv exited unexpectedly (%s)", code)
                     self.mpv_next_start = time.monotonic() + 10
-                self.transition(KioskState.WEB_CONTENT, "screensaver stopped")
+                    self.transition(KioskState.WEB_CONTENT, "screensaver stopped")
             return
         saver = self.config.get("screensaver", {})
-        if saver.get("enabled") and idle >= int(saver.get("timeout_seconds", 300)) * 1000:
+        if saver.get("enabled") and idle >= int(saver.get("timeout_seconds", 30)) * 1000:
             self.start_screensaver()
 
     def process_commands(self) -> None:
@@ -353,7 +367,7 @@ class KioskDaemon:
                 self.saver_dismissed = False
                 self.start_screensaver(manual=True)
             elif command == "screensaver-stop":
-                self.stop_screensaver()
+                self.stop_screensaver(dismiss=True)
 
     def status(self) -> dict[str, Any]:
         chromium_running = self.chromium is not None and self.chromium.poll() is None

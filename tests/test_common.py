@@ -29,7 +29,7 @@ class ConfigurationTests(unittest.TestCase):
         original = validate_config({})
         updated = merge_config(original, {"screensaver": {"enabled": False}})
         self.assertFalse(updated["screensaver"]["enabled"])
-        self.assertEqual(updated["screensaver"]["timeout_seconds"], 300)
+        self.assertEqual(updated["screensaver"]["timeout_seconds"], 30)
         self.assertEqual(updated["url"], original["url"])
 
     def test_rejects_malformed_and_dangerous_urls(self) -> None:
