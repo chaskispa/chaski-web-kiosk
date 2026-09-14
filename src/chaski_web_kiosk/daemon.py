@@ -291,6 +291,8 @@ class KioskDaemon:
                     "--fullscreen",
                     "--ontop",
                     "--loop-file=inf",
+                    "--loop-playlist=inf",
+                    "--gapless-audio=yes",
                     "--no-border",
                     "--no-osc",
                     "--no-osd-bar",
@@ -338,15 +340,11 @@ class KioskDaemon:
                 return
             code = self.mpv.poll()
             if code is not None:
-                if code == 0:
-                    # mpv's input bindings exit cleanly on a mouse, keyboard, or
-                    # touch event. Refresh the configured start page on wake.
-                    self.stop_screensaver(dismiss=not activity, refresh_content=True)
-                else:
-                    self.mpv = None
-                    LOG.warning("mpv exited unexpectedly (%s)", code)
-                    self.mpv_next_start = time.monotonic() + 10
-                    self.transition(KioskState.WEB_CONTENT, "screensaver stopped")
+                self.mpv = None
+                LOG.warning("screensaver exited without local input (%s); restarting", code)
+                self.mpv_next_start = 0.0
+                if not self.start_screensaver(manual=True):
+                    self.transition(KioskState.WEB_CONTENT, "screensaver stopped; retry pending")
             return
         saver = self.config.get("screensaver", {})
         if saver.get("enabled") and idle >= int(saver.get("timeout_seconds", 30)) * 1000:

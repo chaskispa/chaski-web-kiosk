@@ -48,6 +48,22 @@ class DaemonTests(unittest.TestCase):
                 self.assertFalse(daemon.start_screensaver())
             popen.assert_not_called()
 
+    def test_mpv_uses_continuous_gapless_looping(self) -> None:
+        daemon = KioskDaemon()
+        with tempfile.TemporaryDirectory() as directory:
+            media = Path(directory) / "loop.mp4"
+            media.write_bytes(b"video")
+            daemon.config = {"screensaver": {"enabled": True, "media": str(media)}}
+            process = mock.Mock()
+            with mock.patch.object(daemon, "executable", side_effect=lambda name: f"/usr/bin/{name}"), mock.patch(
+                "chaski_web_kiosk.daemon.subprocess.Popen", return_value=process
+            ) as popen:
+                self.assertTrue(daemon.start_screensaver())
+        command = popen.call_args.args[0]
+        self.assertIn("--loop-file=inf", command)
+        self.assertIn("--loop-playlist=inf", command)
+        self.assertIn("--gapless-audio=yes", command)
+
     def test_unexpected_chromium_exit_enters_error_with_backoff(self) -> None:
         daemon = KioskDaemon()
         daemon.state = KioskState.WEB_CONTENT
@@ -101,6 +117,20 @@ class DaemonTests(unittest.TestCase):
         self.assertIsNone(daemon.chromium)
         self.assertEqual(daemon.chromium_next_start, 10.1)
         self.assertEqual(daemon.state, KioskState.STARTING)
+
+    def test_clean_video_exit_without_input_restarts_screensaver(self) -> None:
+        daemon = KioskDaemon()
+        process = mock.Mock()
+        process.poll.return_value = 0
+        daemon.mpv = process
+        daemon.mpv_started_at = 1
+        daemon.last_idle_ms = 30_000
+        with mock.patch.object(daemon, "idle_milliseconds", return_value=31_000), mock.patch.object(
+            daemon, "start_screensaver", return_value=True
+        ) as start:
+            daemon.check_screensaver()
+        start.assert_called_once_with(manual=True)
+        self.assertFalse(daemon.saver_dismissed)
 
 
 if __name__ == "__main__":
