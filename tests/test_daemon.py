@@ -55,10 +55,11 @@ class DaemonTests(unittest.TestCase):
             media.write_bytes(b"video")
             daemon.config = {"screensaver": {"enabled": True, "media": str(media)}}
             process = mock.Mock()
-            with mock.patch.object(daemon, "executable", side_effect=lambda name: f"/usr/bin/{name}"), mock.patch(
-                "chaski_web_kiosk.daemon.subprocess.Popen", return_value=process
-            ) as popen:
+            with mock.patch.object(daemon, "executable", side_effect=lambda name: f"/usr/bin/{name}"), mock.patch.object(
+                daemon, "reload_content_behind_screensaver"
+            ) as refresh, mock.patch("chaski_web_kiosk.daemon.subprocess.Popen", return_value=process) as popen:
                 self.assertTrue(daemon.start_screensaver())
+            refresh.assert_called_once_with()
         command = popen.call_args.args[0]
         self.assertIn("--loop-file=inf", command)
         self.assertIn("--loop-playlist=inf", command)
@@ -88,7 +89,7 @@ class DaemonTests(unittest.TestCase):
             daemon, "stop_screensaver"
         ) as stop, mock.patch("chaski_web_kiosk.daemon.time.monotonic", return_value=2):
             daemon.check_screensaver()
-        stop.assert_called_once_with(refresh_content=True)
+        stop.assert_called_once_with()
 
     def test_x_idle_reset_during_video_is_not_treated_as_physical_input(self) -> None:
         daemon = KioskDaemon()
@@ -121,19 +122,19 @@ class DaemonTests(unittest.TestCase):
         daemon.stop_chromium()
         self.assertFalse(daemon.saver_dismissed)
 
-    def test_wake_restarts_chromium_at_configured_start_page(self) -> None:
+    def test_wake_reveals_already_refreshed_chromium(self) -> None:
         daemon = KioskDaemon()
         daemon.mpv = mock.Mock()
         daemon.chromium = mock.Mock()
-        with mock.patch.object(daemon, "terminate") as terminate, mock.patch(
-            "chaski_web_kiosk.daemon.time.monotonic", return_value=10
-        ):
-            daemon.stop_screensaver(refresh_content=True)
-        self.assertEqual(terminate.call_count, 2)
+        daemon.chromium.poll.return_value = None
+        daemon.chromium.pid = 123
+        chromium = daemon.chromium
+        with mock.patch.object(daemon, "terminate") as terminate:
+            daemon.stop_screensaver()
+        terminate.assert_called_once()
         self.assertIsNone(daemon.mpv)
-        self.assertIsNone(daemon.chromium)
-        self.assertEqual(daemon.chromium_next_start, 10.1)
-        self.assertEqual(daemon.state, KioskState.STARTING)
+        self.assertIs(daemon.chromium, chromium)
+        self.assertEqual(daemon.state, KioskState.WEB_CONTENT)
 
     def test_clean_video_exit_without_input_restarts_screensaver(self) -> None:
         daemon = KioskDaemon()
@@ -146,7 +147,7 @@ class DaemonTests(unittest.TestCase):
             daemon, "start_screensaver", return_value=True
         ) as start:
             daemon.check_screensaver()
-        start.assert_called_once_with(manual=True)
+        start.assert_called_once_with(manual=True, refresh_content=False)
         self.assertFalse(daemon.saver_dismissed)
 
 

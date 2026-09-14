@@ -146,7 +146,7 @@ Current Raspberry Pi OS Lite releases use NetworkManager. On an older image usin
 
 At the configured idle threshold (default 30 seconds), mpv opens the configured H.264 MP4 fullscreen, above Chromium, looping continuously without controls. File and playlist looping plus gapless audio are enabled; if the player nevertheless exits at the end of a file without local input, the supervisor starts it again. The source may be a local file under `/opt/chaski-web-kiosk/media` or a direct HTTP(S) video URL. Local media is recommended for reliable offline playback. `hwdec=auto-safe` uses hardware decoding when the Pi's driver and file support it.
 
-Keyboard, mouse movement/click, and touchscreen input quit mpv. Physical activity is read from Linux input devices, avoiding false wake events when mpv or X11 resets its own idle counter at a loop boundary. On wake, Chromium is restarted at the configured content URL so the experience always returns to its start page. An unexpected mpv failure is retried with a delay. A missing or corrupt file is reported in status and logs without disturbing web playback or causing a rapid restart loop.
+Keyboard, mouse movement/click, and touchscreen input quit mpv. Physical activity is read from Linux input devices, avoiding false wake events when mpv or X11 resets its own idle counter at a loop boundary. As soon as the screensaver begins, Chromium reloads the configured content URL behind the fullscreen video. On wake, only the video closes, revealing the already-fresh page immediately. An unexpected mpv failure is retried with a delay. A missing or corrupt file is reported in status and logs without disturbing web playback or causing a rapid restart loop.
 
 ## 7. Media replacement
 

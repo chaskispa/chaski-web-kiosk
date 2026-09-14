@@ -188,7 +188,10 @@ class KioskDaemon:
             return
         self.chromium_started_at = time.monotonic()
         self.devtools_failures = 0
-        self.transition(KioskState.WEB_CONTENT, "Chromium running")
+        if self.mpv is not None and self.mpv.poll() is None:
+            self.transition(KioskState.SCREENSAVER, "screensaver playing; web content refreshed")
+        else:
+            self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     @staticmethod
     def terminate(process: subprocess.Popen[bytes] | None, name: str) -> None:
@@ -345,7 +348,7 @@ class KioskDaemon:
                 pass
         self.input_fds.clear()
 
-    def start_screensaver(self, *, manual: bool = False) -> bool:
+    def start_screensaver(self, *, manual: bool = False, refresh_content: bool = True) -> bool:
         if self.mpv is not None:
             return True
         saver = self.config.get("screensaver", {})
@@ -386,22 +389,25 @@ class KioskDaemon:
             return False
         self.mpv_started_at = time.monotonic()
         self.transition(KioskState.SCREENSAVER, "screensaver playing")
+        if refresh_content:
+            self.reload_content_behind_screensaver()
         return True
 
-    def stop_screensaver(self, *, dismiss: bool = False, refresh_content: bool = False) -> None:
+    def reload_content_behind_screensaver(self) -> None:
+        """Load a fresh start page while fullscreen video hides Chromium."""
+        LOG.info("screensaver started; refreshing web content in the background")
+        self.terminate(self.chromium, "Chromium")
+        self.chromium = None
+        self.chromium_next_start = 0.0
+        self.start_chromium()
+
+    def stop_screensaver(self, *, dismiss: bool = False) -> None:
         was_running = self.mpv is not None
         self.terminate(self.mpv, "mpv")
         self.mpv = None
         if dismiss and was_running:
             self.saver_dismissed = True
-        if refresh_content and was_running:
-            # A fresh Chromium process reliably returns the display to the configured
-            # start URL even when the previous page changed its history or location.
-            self.terminate(self.chromium, "Chromium")
-            self.chromium = None
-            self.chromium_next_start = time.monotonic() + 0.1
-            self.transition(KioskState.STARTING, "returning to configured start page")
-        elif self.chromium is not None and self.chromium.poll() is None:
+        if self.chromium is not None and self.chromium.poll() is None:
             self.transition(KioskState.WEB_CONTENT, "Chromium running")
 
     def check_screensaver(self) -> None:
@@ -416,14 +422,14 @@ class KioskDaemon:
             self.saver_dismissed = False
         if self.mpv is not None:
             if activity and time.monotonic() - self.mpv_started_at > 0.5:
-                self.stop_screensaver(refresh_content=True)
+                self.stop_screensaver()
                 return
             code = self.mpv.poll()
             if code is not None:
                 self.mpv = None
                 LOG.warning("screensaver exited without local input (%s); restarting", code)
                 self.mpv_next_start = 0.0
-                if not self.start_screensaver(manual=True):
+                if not self.start_screensaver(manual=True, refresh_content=False):
                     self.transition(KioskState.WEB_CONTENT, "screensaver stopped; retry pending")
             return
         saver = self.config.get("screensaver", {})
